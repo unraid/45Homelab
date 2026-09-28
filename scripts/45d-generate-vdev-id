@@ -580,11 +580,20 @@ function alias_hl4()
 
 function alias_x4()
 {
+  // The confirmed X4 map assigns slots 1-1 through 1-4 to ATA ports 8-5.
+  $ports = [8, 7, 6, 5];
   $maps = sata_devpath_alias_maps();
   foreach ($maps as $map) {
-    if (count($map) >= 4) {
+    $paths = [];
+    foreach ($ports as $port) {
+      if (!array_key_exists($port, $map)) {
+        $paths = [];
+        break;
+      }
+      $paths[] = $map[$port];
+    }
+    if (count($paths) === count($ports)) {
       $lines = [];
-      $paths = array_values(array_slice($map, 0, 4, true));
       foreach ($paths as $idx => $path) {
         add_alias($lines, 1, $idx + 1, $path);
       }
@@ -594,14 +603,13 @@ function alias_x4()
 
   $observed_ports = x4_ata_ports_from_sysfs();
   if ($observed_ports !== null) {
-    [$bus, $ports] = $observed_ports;
+    $bus = $observed_ports[0];
   } else {
     $addrs = sata_addresses();
     if (count($addrs) < 1) {
       fail('X4 requires four SATA DEVPATH observations, four ATA ports in sysfs, or one SATA address (DRIVEMAP_DMAP_SATA_ADDRS)');
     }
     $bus = $addrs[0];
-    $ports = [1, 2, 3, 4];
   }
   $lines = [];
   foreach ($ports as $index => $port) {

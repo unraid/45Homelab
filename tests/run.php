@@ -1071,11 +1071,11 @@ $x4_result = run_ported_dmap($root, $ctx_x4_devpath, $x4_server, [
 ]);
 assert_equal($x4_result['code'] ?? 1, 0, 'x4 devpath SATA dmap exits successfully');
 assert_equal($x4_result['aliases'] ?? [], [
-  'alias 1-1 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A01YFM8J',
-  'alias 1-2 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00HFM8J',
-  'alias 1-3 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00TFM8J',
-  'alias 1-4 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A021FM8J',
-], 'x4 maps observed SATA ports in ascending DEVPATH order');
+  'alias 1-1 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A021FM8J',
+  'alias 1-2 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00TFM8J',
+  'alias 1-3 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00HFM8J',
+  'alias 1-4 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A01YFM8J',
+], 'x4 maps observed SATA ports in reverse DEVPATH order');
 
 // Empty X4 bays still expose ATA ports. The four bay ports are 5-8 on B860I.
 $ctx_x4_empty = create_context('ported-dmap-x4-empty');
@@ -1092,11 +1092,26 @@ $x4_empty_result = run_ported_dmap($root, $ctx_x4_empty, $x4_server, [
 ]);
 assert_equal($x4_empty_result['code'] ?? 1, 0, 'x4 empty-bay dmap exits successfully');
 assert_equal($x4_empty_result['aliases'] ?? [], [
-  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
-  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
-  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
-  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
 ], 'x4 maps empty bays from the highest four observed ATA ports');
+
+// X4 address fallback uses the confirmed slot-to-ATA map when no ports are visible.
+$ctx_x4_address = create_context('ported-dmap-x4-address-fallback');
+$x4_address_result = run_ported_dmap($root, $ctx_x4_address, $x4_server, [
+  'DRIVEMAP_DMAP_LSBLK' => 'NAME="nvme0n1" TYPE="disk" TRAN="nvme"',
+  'DRIVEMAP_DMAP_ATA_PORT_DIR' => $ctx_x4_address['tmp'] . '/missing-ata-port',
+  'DRIVEMAP_DMAP_SATA_ADDRS' => '0000:80:17.0',
+]);
+assert_equal($x4_address_result['code'] ?? 1, 0, 'x4 SATA address fallback exits successfully');
+assert_equal($x4_address_result['aliases'] ?? [], [
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
+], 'x4 maps SATA address fallback from the confirmed slot-to-ATA map');
 
 // Scenario 8c: AV15 base aliasing also ignores Intel sSATA when choosing the SATA bus.
 $ctx_av15_base_sata = create_context('ported-dmap-av15-base-sata-regex');
