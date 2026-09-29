@@ -583,16 +583,18 @@ function alias_x4()
   // The confirmed X4 map assigns slots 1-1 through 1-4 to ATA ports 8-5.
   $ports = [8, 7, 6, 5];
   $maps = sata_devpath_alias_maps();
-  foreach ($maps as $map) {
+  foreach ($maps as $bus => $map) {
     $paths = [];
+    $has_observed_path = false;
     foreach ($ports as $port) {
-      if (!array_key_exists($port, $map)) {
-        $paths = [];
-        break;
+      if (array_key_exists($port, $map)) {
+        $paths[] = $map[$port];
+        $has_observed_path = true;
+      } else {
+        $paths[] = "/dev/disk/by-path/pci-$bus-ata-$port";
       }
-      $paths[] = $map[$port];
     }
-    if (count($paths) === count($ports)) {
+    if ($has_observed_path) {
       $lines = [];
       foreach ($paths as $idx => $path) {
         add_alias($lines, 1, $idx + 1, $path);
