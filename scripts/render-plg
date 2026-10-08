@@ -8,7 +8,7 @@ CHANGELOG="${ROOT_DIR}/CHANGELOG.md"
 
 VERSION="${1:-$(awk -F= '/^version=/{print $2}' "${ROOT_DIR}/plugin.cfg")}"
 SHA256="${2:-}"
-REPO="${3:-pujitm/45d-drivemap-unraid}"
+REPO="${3:-unraid/45Homelab}"
 
 if [[ ! -f "${TEMPLATE}" ]]; then
   echo "Template not found: ${TEMPLATE}" >&2

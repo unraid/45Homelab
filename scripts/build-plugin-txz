@@ -23,9 +23,12 @@ mkdir -p "${TARGET_DIR}"
 
 cp -a \
   "${ROOT_DIR}/DriveMap.page" \
+  "${ROOT_DIR}/HomeLab.page" \
+  "${ROOT_DIR}/README.md" \
   "${ROOT_DIR}/plugin.cfg" \
   "${ROOT_DIR}/assets" \
   "${ROOT_DIR}/php" \
+  "${ROOT_DIR}/include" \
   "${ROOT_DIR}/scripts" \
   "${TARGET_DIR}/"
 
@@ -60,10 +63,10 @@ fi
 TAR_ARGS=()
 if tar --version 2>/dev/null | head -n 1 | grep -qi "gnu tar"; then
   TAR_BIN="tar"
-  TAR_ARGS+=(--owner=0 --group=0 --numeric-owner --no-acls --no-xattrs --sort=name --mtime=@946684800)
+  TAR_ARGS+=(--owner=0 --group=0 --numeric-owner --no-acls --no-xattrs --sort=name --mtime=@946684800 --no-recursion)
 else
   TAR_BIN="bsdtar"
-  TAR_ARGS+=(--uid 0 --gid 0 --uname root --gname root --no-acls --no-fflags --no-mac-metadata --no-xattrs)
+  TAR_ARGS+=(--uid 0 --gid 0 --uname root --gname root --no-acls --no-fflags --no-mac-metadata --no-xattrs -n)
 fi
 
 FILE_LIST=$(mktemp)

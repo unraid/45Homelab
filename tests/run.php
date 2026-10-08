@@ -62,7 +62,7 @@ function create_context($name = '')
 {
   global $cleanup_dirs;
   $suffix = $name !== '' ? '-' . $name : '';
-  $tmp = sys_get_temp_dir() . '/45d-drivemap-tests-' . uniqid() . $suffix;
+  $tmp = sys_get_temp_dir() . '/45homelab-tests-' . uniqid() . $suffix;
   $ctx = [
     'tmp' => $tmp,
     'dev_dir' => $tmp . '/dev',
@@ -1419,6 +1419,13 @@ assert_equal($server_copy_code, 0, 'server_info copy with canvas model exits suc
 $server_copy = load_json_file($ctx_server_copy['out_dir'] . '/server_info.json');
 assert_equal($server_copy['Model'] ?? '', 'Unraid >< 45Homelab X-15', 'server_info copy preserves display model');
 assert_equal($server_copy['Canvas Model'] ?? '', 'HomeLab-HL15', 'server_info copy derives canvas model');
+
+// Scenario 12: plugin lifecycle waits for the RGB worker before replacing state.
+$plugin_lifecycle_test = $root . '/tests/plugin_lifecycle.sh';
+$plugin_lifecycle_output = [];
+$plugin_lifecycle_code = 0;
+exec('bash ' . escapeshellarg($plugin_lifecycle_test), $plugin_lifecycle_output, $plugin_lifecycle_code);
+assert_equal($plugin_lifecycle_code, 0, 'plugin lifecycle worker shutdown test passes');
 
 if ($failures > 0) {
   fwrite(STDERR, "\n$failures test(s) failed.\n");

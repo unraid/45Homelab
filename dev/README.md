@@ -72,7 +72,7 @@ To simulate a 45d layout directly on a non-45d Unraid host via the web UI:
 scp DriveMapDevTools.page DriveMapDevToolsSimulator.page root@192.168.1.201:/usr/local/emhttp/plugins/45d-drivemap/
 ```
 
-2. Open **Tools -> 45D Drive Map Dev -> Simulator** in Unraid.
+2. Open **Tools -> 45HomeLab Drive Map Dev -> Simulator** in Unraid.
 3. Pick a profile (for example `H16 Q30`).
 4. Choose an occupancy source:
    - `Use detected by-path devices only` (real occupancy cap)
