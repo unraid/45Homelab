@@ -6,9 +6,9 @@ set a solid color for fan lights connected to the ASRock addressable RGB header.
 ## Stable Plugin Links
 
 - Install / update URL (stable latest):
-  - `https://github.com/unraid/45d-drivemap/releases/latest/download/45homelab.plg`
+  - `https://github.com/unraid/45Homelab/releases/latest/download/45homelab.plg`
 - Release history (version-specific assets):
-  - `https://github.com/unraid/45d-drivemap/releases`
+  - `https://github.com/unraid/45Homelab/releases`
 
 ## What This Plugin Does
 
@@ -106,15 +106,17 @@ a reboot has not been verified.
 1. In Unraid, open **Plugins**.
 2. Choose **Install Plugin**.
 3. Paste the stable URL:
-   - `https://github.com/unraid/45d-drivemap/releases/latest/download/45homelab.plg`
+   - `https://github.com/unraid/45Homelab/releases/latest/download/45homelab.plg`
 4. Install, then open **Main** and scroll to **Drive Map** (top section).
 5. Click **Refresh** in the Drive Map toolbar to force regeneration if needed.
 
-Existing `45d-drivemap` installs need a manual plugin replacement because the
-Unraid plugin ID changed. Remove the old plugin, then install the 45HomeLab URL
-above. The new installer copies `product_name` and
-`hba_phy_order_overrides.json` from the old plugin config directory when those
-files still exist.
+Existing `45d-drivemap` installs can use the normal Plugins update check. The
+release includes a one-time legacy `45d-drivemap.plg` migration asset. It
+downloads and installs `45homelab.plg`, preserves files in the old config
+directory, and then removes the old descriptor, runtime, and config directory
+without calling the old remove hook (which would delete shared drive-map
+state). If the automatic update is not available, remove the old plugin and
+install the 45HomeLab URL above.
 
 ## Configuration Overrides
 

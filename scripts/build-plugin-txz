@@ -43,7 +43,8 @@ fi
 rm -f \
   "${TARGET_DIR}/scripts/build-assets-txz" \
   "${TARGET_DIR}/scripts/build-plugin-txz" \
-  "${TARGET_DIR}/scripts/render-plg"
+  "${TARGET_DIR}/scripts/render-plg" \
+  "${TARGET_DIR}/scripts/render-legacy-plg"
 
 mkdir -p "${PACKAGE_DIR}"
 rm -f "${PACKAGE_PATH}"

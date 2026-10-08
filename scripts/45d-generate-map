@@ -16,6 +16,10 @@ $proc_partitions_path = getenv('DRIVEMAP_PROC_PARTITIONS') ?: '/proc/partitions'
 $sys_block_root = getenv('DRIVEMAP_SYS_BLOCK') ?: '/sys/block';
 $smartctl_dir = getenv('DRIVEMAP_SMARTCTL_DIR') ?: '';
 $disable_smart = getenv('DRIVEMAP_DISABLE_SMART') === '1';
+$force_x4_alias_refresh = getenv('DRIVEMAP_FORCE_X4_ALIAS_REFRESH') === '1';
+$alias_only = getenv('DRIVEMAP_ALIAS_ONLY') === '1';
+$x4_alias_migration_version = trim((string)(getenv('DRIVEMAP_X4_ALIAS_MIGRATION_VERSION') ?: ''));
+$x4_alias_migration_marker = rtrim($output_dir, '/') . '/x4-alias-migration.version';
 $smartctl_nocheck = getenv('DRIVEMAP_SMARTCTL_NOCHECK');
 if ($smartctl_nocheck === false || $smartctl_nocheck === '') {
   // Default to checking SMART without spinning up standby disks.
@@ -128,13 +132,64 @@ if (is_file($server_info_generator)) {
 }
 
 $server_info_path = rtrim($output_dir, '/') . '/server_info.json';
-if (!is_file($alias_file) && is_file($vdev_id_generator) && is_file($server_info_path)) {
-  [$alias_code, $alias_output] = run_vdev_id_generator($vdev_id_generator, $server_info_path, $alias_file);
+$server_info = load_server_info($output_dir);
+if (!is_file($server_info_path) && is_file('/etc/45drives/server_info/server_info.json')) {
+  $server_info_path = '/etc/45drives/server_info/server_info.json';
+}
+$is_x4 = is_array($server_info) && strtoupper(trim((string)($server_info['Chassis Size'] ?? ''))) === 'X4';
+$migration_complete = $x4_alias_migration_version !== ''
+  && is_file($x4_alias_migration_marker)
+  && trim((string)@file_get_contents($x4_alias_migration_marker)) === $x4_alias_migration_version;
+$refresh_x4_alias = $force_x4_alias_refresh && $is_x4 && is_file($alias_file) && !$migration_complete;
+$alias_output_path = $alias_file;
+$temporary_alias_path = null;
+$alias_code = 0;
+if ($refresh_x4_alias) {
+  $temporary_alias_path = tempnam(dirname($alias_file), basename($alias_file) . '.tmp.');
+  if ($temporary_alias_path === false) {
+    $alias_code = 1;
+    log_line($log_file, 'X4 alias refresh could not create a temporary alias file');
+  } else {
+    $alias_mode = @fileperms($alias_file);
+    if (is_int($alias_mode)) {
+      @chmod($temporary_alias_path, $alias_mode & 0777);
+    }
+    $alias_output_path = $temporary_alias_path;
+  }
+}
+
+$should_generate_alias = !is_file($alias_file) || $temporary_alias_path !== null;
+if ($should_generate_alias && is_file($vdev_id_generator) && is_file($server_info_path)) {
+  [$alias_code, $alias_output] = run_vdev_id_generator($vdev_id_generator, $server_info_path, $alias_output_path);
   if ($alias_code !== 0) {
     log_line($log_file, 'alias generation failed: ' . implode(' | ', $alias_output));
+    if ($temporary_alias_path !== null) {
+      @unlink($temporary_alias_path);
+    }
+  } elseif ($temporary_alias_path !== null) {
+    if (@rename($temporary_alias_path, $alias_file)) {
+      if ($x4_alias_migration_version !== '') {
+        @file_put_contents($x4_alias_migration_marker, $x4_alias_migration_version . "\n");
+      }
+      log_line($log_file, 'X4 alias file refreshed: ' . $alias_file);
+    } else {
+      @unlink($temporary_alias_path);
+      $alias_code = 1;
+      log_line($log_file, 'X4 alias refresh could not replace: ' . $alias_file);
+    }
   } else {
     log_line($log_file, 'alias file generated: ' . $alias_file);
   }
+} elseif ($temporary_alias_path !== null) {
+  @unlink($temporary_alias_path);
+  $alias_code = 1;
+  log_line($log_file, 'X4 alias refresh could not run: generator or server info not found');
+}
+if ($alias_only) {
+  if (ensure_zfs_vdev_config_link($alias_file)) {
+    log_line($log_file, 'zfs vdev config linked: /etc/zfs/vdev_id.conf');
+  }
+  exit($alias_code);
 }
 if (ensure_zfs_vdev_config_link($alias_file)) {
   log_line($log_file, 'zfs vdev config linked: /etc/zfs/vdev_id.conf');

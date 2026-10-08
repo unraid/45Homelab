@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-TEMPLATE="${ROOT_DIR}/45homelab.plg.template"
-OUT="${ROOT_DIR}/45homelab.plg"
+TEMPLATE="${ROOT_DIR}/45d-drivemap.plg.template"
+OUT="${ROOT_DIR}/45d-drivemap.plg"
 CHANGELOG="${ROOT_DIR}/CHANGELOG.md"
 
 VERSION="${1:-$(awk -F= '/^version=/{print $2}' "${ROOT_DIR}/plugin.cfg")}"
-SHA256="${2:-}"
+NEW_PLUGIN_SHA256="${2:-}"
 REPO="${3:-unraid/45Homelab}"
 
 if [[ ! -f "${TEMPLATE}" ]]; then
@@ -18,18 +18,13 @@ if [[ ! -f "${CHANGELOG}" ]]; then
   echo "Changelog not found: ${CHANGELOG}" >&2
   exit 1
 fi
-
-if [[ -z "${SHA256}" ]]; then
-  PACKAGE="${ROOT_DIR}/packages/45homelab-${VERSION}.txz"
-  if [[ ! -f "${PACKAGE}" ]]; then
-    echo "Package not found for checksum: ${PACKAGE}" >&2
-    exit 1
-  fi
-  SHA256=$(shasum -a 256 "${PACKAGE}" | awk '{print $1}')
+if [[ -z "${NEW_PLUGIN_SHA256}" ]]; then
+  echo "The checksum of the rendered 45homelab.plg is required" >&2
+  exit 1
 fi
 
-PLUGIN_URL="https://github.com/${REPO}/releases/latest/download/45homelab.plg"
-PACKAGE_URL_BASE="https://github.com/${REPO}/releases/download/v${VERSION}"
+PLUGIN_URL="https://github.com/${REPO}/releases/latest/download/45d-drivemap.plg"
+NEW_PLUGIN_URL="https://github.com/${REPO}/releases/download/v${VERSION}/45homelab.plg"
 CHANGES_BLOCK="$(
   awk '
       {
@@ -76,9 +71,9 @@ trap 'rm -f "${TMP_OUT}"' EXIT
 
 sed \
   -e "s|__VERSION__|${VERSION}|g" \
-  -e "s|__PACKAGE_SHA256__|${SHA256}|g" \
   -e "s|__PLUGIN_URL__|${PLUGIN_URL}|g" \
-  -e "s|__PACKAGE_URL_BASE__|${PACKAGE_URL_BASE}|g" \
+  -e "s|__NEW_PLUGIN_URL__|${NEW_PLUGIN_URL}|g" \
+  -e "s|__NEW_PLUGIN_SHA256__|${NEW_PLUGIN_SHA256}|g" \
   "${TEMPLATE}" > "${TMP_OUT}"
 
 CHANGES_BLOCK="${CHANGES_BLOCK}" perl -0pe 's/__CHANGES__/$ENV{CHANGES_BLOCK}/g' "${TMP_OUT}" > "${OUT}"

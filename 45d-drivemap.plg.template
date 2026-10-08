@@ -1,0 +1,85 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+  <!ENTITY name "45d-drivemap">
+  <!ENTITY author "45Drives + Unraid">
+  <!ENTITY version "__VERSION__">
+  <!ENTITY plugin_url "__PLUGIN_URL__">
+  <!ENTITY target_url "__NEW_PLUGIN_URL__">
+  <!ENTITY target_sha256 "__NEW_PLUGIN_SHA256__">
+]>
+<PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&plugin_url;"
+  launch="Drive Map" min="6.12.0" icon="th" noInstall="true">
+
+  <CHANGES>
+__CHANGES__
+  </CHANGES>
+
+  <FILE Run="/bin/bash" Method="install">
+    <INLINE>
+<![CDATA[
+set -e
+
+NEW_PLUGIN_URL="__NEW_PLUGIN_URL__"
+NEW_PLUGIN_SHA256="__NEW_PLUGIN_SHA256__"
+DOWNLOAD_FILE="$(mktemp /tmp/45homelab-migration.XXXXXX)"
+NEW_PLUGIN_FILE="/tmp/45homelab.plg"
+HOOK_DIR="/usr/local/emhttp/plugins/dynamix.plugin.manager/post-hooks"
+HOOK_FILE="${HOOK_DIR}/45homelab-legacy-migration"
+
+cleanup() {
+  rm -f "${DOWNLOAD_FILE}" "${NEW_PLUGIN_FILE}"
+}
+trap cleanup EXIT
+
+# The update path copies the old descriptor after its install method returns.
+# This one-shot hook removes that copy after the manager has finished.
+mkdir -p "${HOOK_DIR}"
+cat > "${HOOK_FILE}" <<'HOOK'
+#!/bin/bash
+set -eu
+
+case "${2:-}" in
+  install|update) ;;
+  *) exit 0 ;;
+esac
+[ "${1:-}" = "plugin" ] || exit 0
+[ "${3:-}" = "45d-drivemap.plg" ] || exit 0
+
+# Keep the legacy plugin in place if the new plugin failed to install.
+if [ -n "${4:-}" ]; then
+  rm -f "$0"
+  exit 0
+fi
+
+# Do not call `plugin remove`: the old remove hook deletes shared /var/local/45d state.
+rm -f /var/log/plugins/45d-drivemap.plg
+rm -f /boot/config/plugins/45d-drivemap.plg
+rm -f /boot/config/plugins-nextboot/45d-drivemap.plg
+rm -rf /usr/local/emhttp/plugins/45d-drivemap
+rm -rf /boot/config/plugins/45d-drivemap
+rm -f /tmp/plugins/45d-drivemap.plg
+rm -f "$0"
+HOOK
+chmod 0755 "${HOOK_FILE}"
+
+wget --no-cache -q -O "${DOWNLOAD_FILE}" "${NEW_PLUGIN_URL}"
+printf '%s  %s\n' "${NEW_PLUGIN_SHA256}" "${DOWNLOAD_FILE}" | sha256sum -c -
+mv -f "${DOWNLOAD_FILE}" "${NEW_PLUGIN_FILE}"
+HOMELAB_LEGACY_MIGRATION=1 /usr/local/sbin/plugin install "${NEW_PLUGIN_FILE}"
+]]>
+    </INLINE>
+  </FILE>
+
+  <FILE Run="/bin/bash" Method="remove">
+    <INLINE>
+<![CDATA[
+set -e
+
+# This migration descriptor must never remove the shared plugin state.
+rm -rf /usr/local/emhttp/plugins/45d-drivemap
+rm -rf /boot/config/plugins/45d-drivemap
+]]>
+    </INLINE>
+  </FILE>
+
+</PLUGIN>

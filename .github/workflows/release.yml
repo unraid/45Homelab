@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x scripts/build-plugin-txz scripts/render-plg
+          chmod +x scripts/build-plugin-txz scripts/render-plg scripts/render-legacy-plg
           scripts/build-plugin-txz "${{ steps.version.outputs.version }}"
 
       - name: Render release plg
@@ -63,6 +63,8 @@ jobs:
           PACKAGE="packages/45homelab-${{ steps.version.outputs.version }}.txz"
           SHA256="$(sha256sum "${PACKAGE}" | awk '{print $1}')"
           scripts/render-plg "${{ steps.version.outputs.version }}" "${SHA256}" "${{ github.repository }}"
+          PLUGIN_SHA256="$(sha256sum 45homelab.plg | awk '{print $1}')"
+          scripts/render-legacy-plg "${{ steps.version.outputs.version }}" "${PLUGIN_SHA256}" "${{ github.repository }}"
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
@@ -71,4 +73,5 @@ jobs:
           make_latest: true
           files: |
             45homelab.plg
+            45d-drivemap.plg
             packages/45homelab-${{ steps.version.outputs.version }}.txz

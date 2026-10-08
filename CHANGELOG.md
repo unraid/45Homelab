@@ -37,7 +37,8 @@
 - Shared the two color pickers across separate fan colors and animated patterns, with labels and controls matched to each lighting mode.
 - Replaced the skipped LED slider with balanced middle widths of 0, 2, 4, or 6 LEDs per fan; older odd settings round down, and the default is 4.
 - Renamed the Unraid plugin to 45HomeLab and moved its settings under System Settings.
-- Preserved drive-map overrides from existing 45d-drivemap installations during installation.
+- Preserved configuration files from existing 45d-drivemap installations during installation and removed the old plugin bookkeeping without deleting shared drive-map state.
+- Published a temporary 45d-drivemap compatibility descriptor so existing installs can migrate through the normal update check.
 - Tuned the Orange preset to look less yellow on the X4 fans.
 - Paced animated fan streams at 15 frames per second and blended adjacent frames for smoother motion.
 
@@ -47,6 +48,9 @@
 - Let Unraid handle CSRF validation for the lighting form; its request handler removes the token before the page runs.
 - Ensure faded LEDs reach fully off instead of remaining dimly lit.
 - Calibrate the X4 fan preview to the measured LED positions; LED 1 is at about 6:30 on the mounted fans. Pair top middle LEDs across the gap for even skipped counts.
+- Corrected X4 bay aliases to use the confirmed ATA8-through-ATA5 slot order.
+- Preserved populated by-id paths in partial X4 maps and preferred the sysfs-qualified controller when multiple SATA controllers are present.
+- Refreshed existing X4 alias mappings during plugin installation.
 
 ## 0.4.0
 
