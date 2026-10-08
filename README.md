@@ -25,9 +25,10 @@ set a solid color for fan lights connected to the ASRock addressable RGB header.
 
 ## X4 Fan Lighting
 
-Install Simon's [OpenRGB Unraid plugin](https://github.com/unraid/unraid-openrgb/releases/latest/download/openrgb.plg)
-first. 45HomeLab uses its `/usr/bin/openrgb` command. It does not bundle another
-OpenRGB runtime. The X4 controller must appear as `ASRock B860I WiFi` with
+Install [Unraid's OpenRGB plugin](https://github.com/unraid/unraid-openrgb/releases/latest/download/openrgb.plg)
+first.
+45HomeLab uses its `/usr/bin/openrgb` command. It does not bundle another OpenRGB
+runtime. The X4 controller must appear as `ASRock B860I WiFi` with
 `Addressable Header 1` in `openrgb --list-detailed`.
 
 Select Off, White, Warm White, Red, Orange, Yellow, Green, Teal, Cyan, Blue,
