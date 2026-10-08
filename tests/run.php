@@ -1033,7 +1033,7 @@ $x4_server = [
   'Alias Style' => 'HOMELAB',
   'Chassis Size' => 'X4',
   'Motherboard' => [
-    'Product Name' => 'X4 Prototype',
+    'Product Name' => 'B860I WiFi',
   ],
   'HBA' => [],
   'OS NAME' => 'Unraid',
@@ -1071,11 +1071,142 @@ $x4_result = run_ported_dmap($root, $ctx_x4_devpath, $x4_server, [
 ]);
 assert_equal($x4_result['code'] ?? 1, 0, 'x4 devpath SATA dmap exits successfully');
 assert_equal($x4_result['aliases'] ?? [], [
-  'alias 1-1 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A01YFM8J',
-  'alias 1-2 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00HFM8J',
-  'alias 1-3 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00TFM8J',
-  'alias 1-4 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A021FM8J',
-], 'x4 maps observed SATA ports in ascending DEVPATH order');
+  'alias 1-1 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A021FM8J',
+  'alias 1-2 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00TFM8J',
+  'alias 1-3 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A00HFM8J',
+  'alias 1-4 /dev/disk/by-id/ata-TOSHIBA_MG10AFA22TE_Z360A01YFM8J',
+], 'x4 maps observed SATA ports in reverse DEVPATH order');
+
+// A partially populated X4 must keep by-id paths for populated ports and use
+// by-path only for bays that have no disk.
+$ctx_x4_partial = create_context('ported-dmap-x4-partial-devpath-sata');
+$x4_partial_result = run_ported_dmap($root, $ctx_x4_partial, $x4_server, [
+  'DRIVEMAP_DMAP_LSBLK' => 'NAME="sdb" TYPE="disk" TRAN="sata" HCTL="6:0:0:0" MODEL="ST8000VN0022-2EL112" SERIAL="ZA1JMX3W" SIZE="8001563222016" ROTA="1"',
+  'DRIVEMAP_DMAP_UDEVADM_PROPS_JSON' => json_encode([
+    'sdb' => [
+      'DEVLINKS' => '/dev/disk/by-id/ata-ST8000VN0022-2EL112_ZA1JMX3W',
+      'DEVPATH' => '/devices/pci0000:80/0000:80:17.0/ata7/host6/target6:0:0/6:0:0:0/block/sdb',
+      'ID_BUS' => 'ata',
+    ],
+  ]),
+  'DRIVEMAP_DMAP_ATA_PORT_DIR' => $ctx_x4_partial['tmp'] . '/missing-ata-port',
+  'DRIVEMAP_DMAP_SATA_ADDRS' => '0000:80:17.0',
+]);
+assert_equal($x4_partial_result['code'] ?? 1, 0, 'x4 partial SATA dmap exits successfully');
+assert_equal($x4_partial_result['aliases'] ?? [], [
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-id/ata-ST8000VN0022-2EL112_ZA1JMX3W',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
+], 'x4 preserves the populated ATA7 by-id path in a partial map');
+
+// A qualifying sysfs controller takes precedence over a partial disk map on
+// another controller, so empty bays do not inherit the wrong bus address.
+$ctx_x4_controller = create_context('ported-dmap-x4-controller-selection');
+$controller_ata_port_dir = $ctx_x4_controller['tmp'] . '/ata-port';
+ensure_dir($controller_ata_port_dir);
+for ($port = 1; $port <= 4; $port++) {
+  $target = $ctx_x4_controller['tmp'] . "/pci0000:80/0000:80:17.0/ata$port/ata_port/ata$port";
+  ensure_dir($target);
+  symlink($target, "$controller_ata_port_dir/ata$port");
+}
+for ($port = 5; $port <= 8; $port++) {
+  $target = $ctx_x4_controller['tmp'] . "/pci0000:81/0000:81:17.0/ata$port/ata_port/ata$port";
+  ensure_dir($target);
+  symlink($target, "$controller_ata_port_dir/ata$port");
+}
+$x4_controller_result = run_ported_dmap($root, $ctx_x4_controller, $x4_server, [
+  'DRIVEMAP_DMAP_LSBLK' => 'NAME="sdb" TYPE="disk" TRAN="sata" HCTL="6:0:0:0" MODEL="ST8000VN0022-2EL112" SERIAL="ZA1JMX3W" SIZE="8001563222016" ROTA="1"',
+  'DRIVEMAP_DMAP_UDEVADM_PROPS_JSON' => json_encode([
+    'sdb' => [
+      'DEVLINKS' => '/dev/disk/by-id/ata-ST8000VN0022-2EL112_ZA1JMX3W',
+      'DEVPATH' => '/devices/pci0000:80/0000:80:17.0/ata7/host6/target6:0:0/6:0:0:0/block/sdb',
+      'ID_BUS' => 'ata',
+    ],
+  ]),
+  'DRIVEMAP_DMAP_ATA_PORT_DIR' => $controller_ata_port_dir,
+]);
+assert_equal($x4_controller_result['code'] ?? 1, 0, 'x4 controller selection exits successfully');
+assert_equal($x4_controller_result['aliases'] ?? [], [
+  'alias 1-1 /dev/disk/by-path/pci-0000:81:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-path/pci-0000:81:17.0-ata-7',
+  'alias 1-3 /dev/disk/by-path/pci-0000:81:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:81:17.0-ata-5',
+], 'x4 prefers the sysfs-qualified controller over a partial disk map');
+
+// Empty X4 bays still expose ATA ports. The four bay ports are 5-8 on B860I.
+$ctx_x4_empty = create_context('ported-dmap-x4-empty');
+$ata_port_dir = $ctx_x4_empty['tmp'] . '/ata-port';
+ensure_dir($ata_port_dir);
+for ($port = 1; $port <= 8; $port++) {
+  $target = $ctx_x4_empty['tmp'] . "/pci0000:80/0000:80:17.0/ata$port/ata_port/ata$port";
+  ensure_dir($target);
+  symlink($target, "$ata_port_dir/ata$port");
+}
+$x4_empty_result = run_ported_dmap($root, $ctx_x4_empty, $x4_server, [
+  'DRIVEMAP_DMAP_LSBLK' => 'NAME="nvme0n1" TYPE="disk" TRAN="nvme"',
+  'DRIVEMAP_DMAP_ATA_PORT_DIR' => $ata_port_dir,
+]);
+assert_equal($x4_empty_result['code'] ?? 1, 0, 'x4 empty-bay dmap exits successfully');
+assert_equal($x4_empty_result['aliases'] ?? [], [
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
+], 'x4 maps empty bays from the confirmed ATA5-ATA8 ports');
+
+// X4 address fallback uses the confirmed slot-to-ATA map when no ports are visible.
+$ctx_x4_address = create_context('ported-dmap-x4-address-fallback');
+$x4_address_result = run_ported_dmap($root, $ctx_x4_address, $x4_server, [
+  'DRIVEMAP_DMAP_LSBLK' => 'NAME="nvme0n1" TYPE="disk" TRAN="nvme"',
+  'DRIVEMAP_DMAP_ATA_PORT_DIR' => $ctx_x4_address['tmp'] . '/missing-ata-port',
+  'DRIVEMAP_DMAP_SATA_ADDRS' => '0000:80:17.0',
+]);
+assert_equal($x4_address_result['code'] ?? 1, 0, 'x4 SATA address fallback exits successfully');
+assert_equal($x4_address_result['aliases'] ?? [], [
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
+], 'x4 maps SATA address fallback from the confirmed slot-to-ATA map');
+
+// An existing X4 alias file is refreshed during plugin installation.
+$ctx_x4_migration = create_context('ported-dmap-x4-alias-migration');
+$migration_server_info = $ctx_x4_migration['out_dir'] . '/server_info.json';
+file_put_contents($migration_server_info, json_encode($x4_server, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+file_put_contents($ctx_x4_migration['alias_file'], implode("\n", [
+  '# old X4 mapping',
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
+  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+]) . "\n");
+$migration_ata_port_dir = $ctx_x4_migration['tmp'] . '/ata-port';
+ensure_dir($migration_ata_port_dir);
+for ($port = 1; $port <= 8; $port++) {
+  $target = $ctx_x4_migration['tmp'] . "/pci0000:80/0000:80:17.0/ata$port/ata_port/ata$port";
+  ensure_dir($target);
+  symlink($target, "$migration_ata_port_dir/ata$port");
+}
+[$x4_migration_code] = run_php_script($root . '/scripts/45d-generate-map', [
+  'DRIVEMAP_OUTPUT_DIR' => $ctx_x4_migration['out_dir'],
+  'DRIVEMAP_ALIAS_FILE' => $ctx_x4_migration['alias_file'],
+  'DRIVEMAP_SERVER_INFO_GENERATOR' => '/bin/false',
+  'DRIVEMAP_VDEV_ID_GENERATOR' => $root . '/scripts/45d-generate-vdev-id',
+  'DRIVEMAP_FORCE_X4_ALIAS_REFRESH' => '1',
+  'DRIVEMAP_ALIAS_ONLY' => '1',
+  'DRIVEMAP_DISABLE_SMART' => '1',
+  'DRIVEMAP_X4_ALIAS_MIGRATION_VERSION' => '0.4.1',
+  'DRIVEMAP_DMAP_ATA_PORT_DIR' => $migration_ata_port_dir,
+]);
+assert_equal($x4_migration_code, 0, 'x4 alias migration exits successfully');
+assert_equal(trim((string)@file_get_contents($ctx_x4_migration['out_dir'] . '/x4-alias-migration.version')), '0.4.1', 'x4 alias migration records its version');
+assert_equal(alias_lines_from_fixture($ctx_x4_migration['alias_file']), [
+  'alias 1-1 /dev/disk/by-path/pci-0000:80:17.0-ata-8',
+  'alias 1-2 /dev/disk/by-path/pci-0000:80:17.0-ata-7',
+  'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
+  'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
+], 'x4 migration replaces the existing alias mapping');
 
 // Scenario 8c: AV15 base aliasing also ignores Intel sSATA when choosing the SATA bus.
 $ctx_av15_base_sata = create_context('ported-dmap-av15-base-sata-regex');
