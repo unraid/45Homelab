@@ -6,6 +6,7 @@
 - Corrected X4 slot mapping to use ATA8 through ATA5 for bays 1-1 through 1-4.
 - Preserved populated by-id paths when an X4 has a partial disk map.
 - Added sysfs ATA-port detection so empty X4 bays still receive stable aliases.
+- Refreshed existing X4 alias mappings during plugin installation.
 
 ## 0.4.0
 

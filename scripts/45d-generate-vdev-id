@@ -328,6 +328,7 @@ function x4_ata_ports_from_sysfs()
 {
   // Empty X4 bays have no block devices or by-path links. ATA ports still
   // exist in sysfs, so use their controller and port numbers for stable bays.
+  $expected_ports = [5, 6, 7, 8];
   $dir = getenv('DRIVEMAP_DMAP_ATA_PORT_DIR') ?: '/sys/class/ata_port';
   $groups = [];
   foreach (glob($dir . '/ata*') ?: [] as $entry) {
@@ -343,8 +344,8 @@ function x4_ata_ports_from_sysfs()
   ksort($groups);
   foreach ($groups as $bus => $ports) {
     ksort($ports);
-    if (count($ports) >= 4) {
-      return [$bus, array_slice(array_values($ports), -4)];
+    if (count(array_intersect($expected_ports, array_keys($ports))) === count($expected_ports)) {
+      return [$bus, array_reverse($expected_ports)];
     }
   }
   return null;
@@ -582,6 +583,19 @@ function alias_x4()
 {
   // The confirmed X4 map assigns slots 1-1 through 1-4 to ATA ports 8-5.
   $ports = [8, 7, 6, 5];
+  $observed_ports = x4_ata_ports_from_sysfs();
+  if ($observed_ports !== null) {
+    [$preferred_bus, $ports] = $observed_ports;
+    $maps = sata_devpath_alias_maps();
+    $map = $maps[$preferred_bus] ?? [];
+    $lines = [];
+    foreach ($ports as $idx => $port) {
+      $path = $map[$port] ?? "/dev/disk/by-path/pci-$preferred_bus-ata-$port";
+      add_alias($lines, 1, $idx + 1, $path);
+    }
+    return $lines;
+  }
+
   $maps = sata_devpath_alias_maps();
   foreach ($maps as $bus => $map) {
     $paths = [];
@@ -603,16 +617,11 @@ function alias_x4()
     }
   }
 
-  $observed_ports = x4_ata_ports_from_sysfs();
-  if ($observed_ports !== null) {
-    $bus = $observed_ports[0];
-  } else {
-    $addrs = sata_addresses();
-    if (count($addrs) < 1) {
-      fail('X4 requires four SATA DEVPATH observations, four ATA ports in sysfs, or one SATA address (DRIVEMAP_DMAP_SATA_ADDRS)');
-    }
-    $bus = $addrs[0];
+  $addrs = sata_addresses();
+  if (count($addrs) < 1) {
+    fail('X4 requires four SATA DEVPATH observations, ATA5-ATA8 ports in sysfs, or one SATA address (DRIVEMAP_DMAP_SATA_ADDRS)');
   }
+  $bus = $addrs[0];
   $lines = [];
   foreach ($ports as $index => $port) {
     add_alias($lines, 1, $index + 1, "/dev/disk/by-path/pci-$bus-ata-$port");

@@ -40,6 +40,15 @@ fi
 
 chmod +x "${PLUGIN_DIR}/scripts/45d-generate-map" || true
 chmod +x "${PLUGIN_DIR}/scripts/45d-generate-server-info" || true
+
+# Refresh aliases for existing X4 installations after the ATA slot mapping fix.
+if [ -f /etc/vdev_id.conf ] && [ -x "${PLUGIN_DIR}/scripts/45d-generate-map" ]; then
+  DRIVEMAP_FORCE_X4_ALIAS_REFRESH=1 \
+  DRIVEMAP_ALIAS_ONLY=1 \
+  DRIVEMAP_DISABLE_SMART=1 \
+  DRIVEMAP_X4_ALIAS_MIGRATION_VERSION=0.4.1 \
+  "${PLUGIN_DIR}/scripts/45d-generate-map" >/dev/null 2>&1 || true
+fi
 ]]>
     </INLINE>
   </FILE>
