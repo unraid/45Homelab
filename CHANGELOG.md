@@ -50,6 +50,7 @@
 - Preserved populated by-id paths in partial X4 maps and preferred the sysfs-qualified controller when multiple SATA controllers are present.
 - Refreshed existing X4 alias mappings during plugin installation.
 - Waited for the X4 RGB worker to exit before replacing or removing plugin files.
+- Reported night-schedule installation failures during plugin setup.
 
 ## 0.4.0
 

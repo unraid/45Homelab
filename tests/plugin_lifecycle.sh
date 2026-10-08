@@ -6,6 +6,11 @@ TEMPLATE="${ROOT_DIR}/45d-drivemap.plg.template"
 TMP_DIR=$(mktemp -d)
 WORKER_PID=""
 
+if grep -Fq -- '--install || true' "${TEMPLATE}"; then
+  echo "Plugin lifecycle must not suppress night-schedule installation failures." >&2
+  exit 1
+fi
+
 cleanup() {
   if [ -n "${WORKER_PID}" ]; then
     kill "${WORKER_PID}" 2>/dev/null || true
@@ -84,4 +89,4 @@ run_blocked_shutdown
 eval "${REMOVE_FUNCTION}"
 run_successful_shutdown
 
-echo "Plugin lifecycle worker shutdown test passed."
+echo "Plugin lifecycle tests passed."

@@ -92,8 +92,8 @@ temporarily overrides the lights until the next schedule transition. Repeat
 button events within one second are ignored because some boards dispatch
 one physical press twice.
 The control targets only the X4 addressable header. Other OpenRGB devices are
-left alone. Applying a color changes the controller now; persistence across a
-power cycle has not been verified.
+left alone. Applying a color sends the selected setting to the controller
+immediately; persistence across a power cycle has not been verified.
 The two daisy-chained ARCTIC fans on the tested X4 form a 24-LED serial chain:
 LEDs 1–12 are the top fan and 13–24 are the bottom fan. The independent controls
 use the ASRock USB controller's HID stream. A fixed white/blue test and an

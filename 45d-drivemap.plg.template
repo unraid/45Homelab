@@ -94,7 +94,10 @@ if [ -d /etc/acpi/powerbutton.d ]; then
   install -m 0755 "${PLUGIN_DIR}/scripts/45d-rgb-powerbutton" /etc/acpi/powerbutton.d/45homelab-lights
 fi
 if [ -f "/boot/config/plugins/${MAINNAME}/rgb-schedule.json" ]; then
-  /usr/bin/php "${PLUGIN_DIR}/scripts/45d-rgb-schedule.php" --install || true
+  if ! /usr/bin/php "${PLUGIN_DIR}/scripts/45d-rgb-schedule.php" --install; then
+    echo "45HomeLab: night schedule installation failed; plugin installation did not complete." >&2
+    exit 1
+  fi
 fi
 
 ]]>
