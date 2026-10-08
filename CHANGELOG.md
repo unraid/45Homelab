@@ -49,6 +49,7 @@
 - Corrected X4 bay aliases to use the confirmed ATA8-through-ATA5 slot order.
 - Preserved populated by-id paths in partial X4 maps and preferred the sysfs-qualified controller when multiple SATA controllers are present.
 - Refreshed existing X4 alias mappings during plugin installation.
+- Waited for the X4 RGB worker to exit before replacing or removing plugin files.
 
 ## 0.4.0
 

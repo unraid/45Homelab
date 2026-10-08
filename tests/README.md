@@ -36,6 +36,7 @@ Coverage includes:
 - direct ported `dmap` parity checks vs vendored upstream for covered cases
 - alias-line structural validation (format, uniqueness, contiguous numbering)
 - deterministic output checks + unsupported-style failure checks
+- plugin lifecycle worker shutdown behavior
 - upstream template extraction helper: `tests/vendor_template.py`
 - upstream dmap case helper: `tests/vendor_dmap_case.py`
 - non-45d remote smoke harness entrypoint: `tests/remote_smoke.php`
