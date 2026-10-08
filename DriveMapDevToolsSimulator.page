@@ -4,7 +4,7 @@ Icon="icon-simulator"
 Tag="wrench"
 ---
 <?PHP
-$plugin = '45homelab';
+$plugin = '45d-drivemap';
 $plugin_dir = "/usr/local/emhttp/plugins/$plugin";
 $map_script = "$plugin_dir/scripts/45d-generate-map";
 $alias_file = '/etc/vdev_id.conf';

@@ -9,7 +9,7 @@ if ($argc === 2) {
   $result = homelab_schedule_sync_cron();
   if (!$result['ok']) {
     fwrite(STDERR, $result['error'] . "\n");
-    openlog('45homelab', LOG_PID, LOG_USER);
+    openlog('45d-drivemap', LOG_PID, LOG_USER);
     syslog(LOG_ERR, 'Night schedule installation failed: ' . $result['error']);
     closelog();
     exit(1);
@@ -18,7 +18,7 @@ if ($argc === 2) {
 $result = homelab_schedule_tick();
 if (!$result['ok']) {
   fwrite(STDERR, $result['error'] . "\n");
-  openlog('45homelab', LOG_PID, LOG_USER);
+  openlog('45d-drivemap', LOG_PID, LOG_USER);
   syslog(LOG_ERR, 'Night schedule update failed: ' . $result['error']);
   closelog();
   exit(1);

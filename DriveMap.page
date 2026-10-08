@@ -3,7 +3,7 @@ Title="Drive Map"
 Tag="th"
 ---
 <?PHP
-$plugin = '45homelab';
+$plugin = '45d-drivemap';
 $asset_root = "/plugins/$plugin/assets/45d";
 $asset_base = "$asset_root/45drives-disks";
 $api_base = "/plugins/$plugin/php/api.php";

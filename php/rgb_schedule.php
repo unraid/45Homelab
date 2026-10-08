@@ -3,7 +3,7 @@ require_once __DIR__ . '/rgb_control.php';
 
 function homelab_schedule_paths()
 {
-  $boot = rtrim(getenv('HOMELAB_RGB_CONFIG_DIR') ?: '/boot/config/plugins/45homelab', '/');
+  $boot = rtrim(getenv('HOMELAB_RGB_CONFIG_DIR') ?: '/boot/config/plugins/45d-drivemap', '/');
   $runtime = homelab_stream_runtime_dir();
   return [
     'schedule' => "$boot/rgb-schedule.json",
@@ -254,7 +254,7 @@ function homelab_schedule_sync_cron()
 {
   $paths = homelab_schedule_paths();
   if (homelab_schedule_load()['enabled'] && homelab_stream_controller() !== null) {
-    $entry = "* * * * * /usr/bin/php /usr/local/emhttp/plugins/45homelab/scripts/45d-rgb-schedule.php >/dev/null 2>&1\n";
+    $entry = "* * * * * /usr/bin/php /usr/local/emhttp/plugins/45d-drivemap/scripts/45d-rgb-schedule.php >/dev/null 2>&1\n";
     if (file_put_contents($paths['cron'], $entry, LOCK_EX) === false) {
       return ['ok' => false, 'error' => 'Could not install the night schedule.'];
     }

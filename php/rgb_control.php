@@ -170,7 +170,7 @@ function homelab_rgb_set_synchronized_rainbow($input = [])
 
 function homelab_rgb_custom_palette_path()
 {
-  return getenv('HOMELAB_RGB_CUSTOM_PATH') ?: '/boot/config/plugins/45homelab/rgb-custom.json';
+  return getenv('HOMELAB_RGB_CUSTOM_PATH') ?: '/boot/config/plugins/45d-drivemap/rgb-custom.json';
 }
 
 function homelab_rgb_custom_palette()

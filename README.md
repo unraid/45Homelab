@@ -6,7 +6,7 @@ set a solid color for fan lights connected to the ASRock addressable RGB header.
 ## Stable Plugin Links
 
 - Install / update URL (stable latest):
-  - `https://github.com/unraid/45Homelab/releases/latest/download/45homelab.plg`
+  - `https://github.com/unraid/45Homelab/releases/latest/download/45d-drivemap.plg`
 - Release history (version-specific assets):
   - `https://github.com/unraid/45Homelab/releases`
 
@@ -38,7 +38,7 @@ bottom fans, Outer Loop, Synchronized Wave, Two-Color Loop, Comet Loop,
 Two-Color Pulse, Halloween Eyes, and custom colors for all 24 LEDs. Select Custom LEDs, then select a hub LED to open its
 color editor, or fill either fan. The orange/blue split button provides a
 starting palette. Apply the lighting to send it to the fans. The palette is saved at
-`/boot/config/plugins/45homelab/rgb-custom.json`.
+`/boot/config/plugins/45d-drivemap/rgb-custom.json`.
 Separate fan colors and animated patterns start with the X4's calibrated dark
 orange (`#FF4500`) and blue (`#0000FF`). Outer Loop and Synchronized Wave keep
 their full rainbow by default. Select Two colors to use the orange and blue
@@ -77,7 +77,7 @@ Night schedule uses the server's local clock. Choose an off time and restore
 time in Settings > System Settings > 45HomeLab, then enable night mode. It turns
 fan lights off during that window and restores the last applied daytime mode.
 The schedule and daytime selection are saved under
-`/boot/config/plugins/45homelab/`; Unraid's plugin cron runs once per minute.
+`/boot/config/plugins/45d-drivemap/`; Unraid's plugin cron runs once per minute.
 Leave night mode disabled until the desired hours are selected. Applying a new
 lighting mode at night saves it for daytime and returns the lights to off.
 The schedule is reinstalled at plugin startup; reboot restoration has not yet
@@ -106,24 +106,20 @@ a reboot has not been verified.
 1. In Unraid, open **Plugins**.
 2. Choose **Install Plugin**.
 3. Paste the stable URL:
-   - `https://github.com/unraid/45Homelab/releases/latest/download/45homelab.plg`
+   - `https://github.com/unraid/45Homelab/releases/latest/download/45d-drivemap.plg`
 4. Install, then open **Main** and scroll to **Drive Map** (top section).
 5. Click **Refresh** in the Drive Map toolbar to force regeneration if needed.
 
-Existing `45d-drivemap` installs can use the normal Plugins update check. The
-release includes a one-time legacy `45d-drivemap.plg` migration asset. It
-downloads and installs `45homelab.plg`, preserves files in the old config
-directory, and then removes the old descriptor, runtime, and config directory
-without calling the old remove hook (which would delete shared drive-map
-state). If the automatic update is not available, remove the old plugin and
-install the 45HomeLab URL above.
+Existing `45d-drivemap` installs keep the same plugin ID and update URL. After
+the update, Community Applications and the Unraid Plugins page show
+`45HomeLab`. Runtime and configuration paths remain unchanged.
 
 ## Configuration Overrides
 
 - To override model inference, place a product name override in
-  `/boot/config/plugins/45homelab/product_name`.
+  `/boot/config/plugins/45d-drivemap/product_name`.
 - To override HBA port/phy order for non-standard motherboard/HBA builds, create
-  `/boot/config/plugins/45homelab/hba_phy_order_overrides.json`:
+  `/boot/config/plugins/45d-drivemap/hba_phy_order_overrides.json`:
 
 ```json
 {
@@ -141,7 +137,7 @@ aliases after changing this file.
 To collect the current HBA/SATA path/device evidence for building an override, run:
 
 ```bash
-/usr/local/emhttp/plugins/45homelab/scripts/45d-list-hba-paths
+/usr/local/emhttp/plugins/45d-drivemap/scripts/45d-list-hba-paths
 ```
 
 It prints `hba_path`, resolved `/dev/sdX`, serial, model, size, PCI bus, and
@@ -152,9 +148,9 @@ support ticket.
 
 Removing the plugin cleans up:
 
-- `/usr/local/emhttp/plugins/45homelab`
+- `/usr/local/emhttp/plugins/45d-drivemap`
 - `/var/local/45d`
-- cached package files under `/boot/config/plugins/45homelab`
+- cached package files under `/boot/config/plugins/45d-drivemap`
 
 ## Development
 
