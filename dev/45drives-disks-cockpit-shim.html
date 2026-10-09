@@ -1,0 +1,144 @@
+    <script>
+      // Unraid shim for the vendored 45drives-disks Cockpit module.
+      // Injected into <head> by dev/update-45drives-disks.sh, which also strips
+      // the upstream Cockpit-internal loader scripts (the ones served from
+      // ../base1, ../manifests.js, etc.) that 404 outside Cockpit. Provides a
+      // minimal window.cockpit that routes process calls to php/api.php.
+      window.__45dDriveMap = {
+        apiBase: "/plugins/45d-drivemap/php/api.php"
+      };
+
+      (function () {
+        if (window.cockpit) {
+          return;
+        }
+
+        var apiBase = window.__45dDriveMap && window.__45dDriveMap.apiBase ? window.__45dDriveMap.apiBase : "";
+
+        function mapAction(argv) {
+          var cmd = argv && argv.length ? argv[0] : "";
+          if (cmd.indexOf("lsdev") !== -1) return "lsdev";
+          if (cmd.indexOf("server_info") !== -1) return "server_info";
+          if (cmd.indexOf("disk_info") !== -1) return "disk_info";
+          if (cmd.indexOf("zfs_info") !== -1) return "zfs_info";
+          if (cmd.indexOf("dmap") !== -1) return "refresh";
+          if (cmd.indexOf("server_identifier") !== -1) return "server_info";
+          return null;
+        }
+
+        function buildError(status, message, stdout) {
+          var err = new Error(message || "Request failed");
+          err.exit_status = status || 1;
+          err.problem = message || "Request failed";
+          err.stdout = stdout || "";
+          return err;
+        }
+
+        function spawn(argv, opts) {
+          var action = mapAction(argv || []);
+          var handlers = {
+            onFulfilled: null,
+            onRejected: null,
+            onFinally: null
+          };
+
+          function handle() {
+            return {
+              then: function (cb) {
+                handlers.onFulfilled = cb;
+                return this;
+              },
+              catch: function (cb) {
+                handlers.onRejected = cb;
+                return this;
+              },
+              finally: function (cb) {
+                handlers.onFinally = cb;
+                return this;
+              }
+            };
+          }
+
+          function finish() {
+            if (handlers.onFinally) {
+              handlers.onFinally();
+            }
+          }
+
+          if (!apiBase || !action) {
+            var err = buildError(1, "Unsupported command");
+            setTimeout(function () {
+              if (handlers.onRejected) {
+                handlers.onRejected(err, err.stdout);
+              }
+              finish();
+            }, 0);
+            return handle();
+          }
+
+          var url = apiBase + "?action=" + encodeURIComponent(action) + "&ts=" + Date.now();
+          var method = action === "refresh" ? "POST" : "GET";
+
+          fetch(url, {
+            method: method,
+            credentials: "same-origin"
+          }).then(function (res) {
+            return res.text().then(function (text) {
+              if (!res.ok) {
+                throw buildError(res.status, res.statusText, text);
+              }
+              return { stdout: text, stderr: "" };
+            });
+          }).then(function (result) {
+            if (handlers.onFulfilled) {
+              handlers.onFulfilled(result.stdout, result.stderr);
+            }
+          }).catch(function (err) {
+            if (handlers.onRejected) {
+              handlers.onRejected(err, err.stdout);
+            }
+          }).finally(finish);
+
+          return handle();
+        }
+
+        function permission() {
+          var permissionObj = {
+            allowed: true,
+            addEventListener: function (event, cb) {
+              if (event === "changed" && typeof cb === "function") {
+                setTimeout(cb, 0);
+              }
+            }
+          };
+
+          return permissionObj;
+        }
+
+        function file() {
+          return {
+            watch: function (cb) {
+              if (typeof cb === "function") {
+                setTimeout(function () {
+                  cb("");
+                }, 0);
+              }
+              return { remove: function () {} };
+            }
+          };
+        }
+
+        window.cockpit = {
+          spawn: spawn,
+          permission: permission,
+          file: file,
+          location: {
+            go: function (path) {
+              if (path) {
+                window.location.href = path;
+              }
+            }
+          }
+        };
+      })();
+    </script>

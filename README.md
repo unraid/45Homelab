@@ -155,6 +155,31 @@ Removing the plugin cleans up:
 
 ## Development
 
+### Disk-map frontend (45Drives base + Unraid patches)
+
+The **base** disk-map UI is built by **45Drives**; we vendor it and layer
+Unraid-specific patches on top. The shipped bundle is therefore *not* a clean
+upstream snapshot — see `assets/45d/README.md` for the full provenance and the
+list of Unraid patches (Cockpit API shim, drive standby display, storage
+context).
+
+- The shipped bundle lives in `assets/45d/45drives-disks/` (45Drives base
+  v2.5.4-2 + Unraid patches).
+- The matching Vue source is under `vendor/45drives/cockpit-hardware/45drives-disks/`
+  (upstream v2.5.8 + Unraid feature source); it builds with
+  `npm install && npm run build` (vendored dep shim in `src/lib/`). Do **not**
+  run the upstream `make` here — it fans out to sibling plugins
+  (`45drives-motherboard`, `45drives-system`) that need 45Drives' private
+  package registry and fail with `401 Unauthorized`.
+- **Updating is not a drop-in pull.** A newer upstream build lacks the Unraid
+  patches and would regress them. `dev/update-45drives-disks.sh` fetches an
+  upstream build as a starting point only; the Unraid patches must be re-applied
+  and QA'd. Upstream also rewrote its architecture after v2.5.8 (→ the
+  `houston-common` monorepo), so a version bump is a re-port, not a merge. See
+  `dev/README.md`.
+
+### Plugin
+
 - Release process details: `RELEASING.md`
 - Changelog management: `CHANGELOG.md` + `knope.toml`
 - Test suite:
