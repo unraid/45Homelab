@@ -11,7 +11,7 @@
 - Added an optional mesh view that softens the lighting preview without changing the fan output.
 - Spread mesh-view light across each fan face to match the X4's illuminated fan surface.
 - Removed rapid second blinks and added light frame smoothing to reduce flicker while keeping a fully dark closed phase.
-- Added basic solid-color and off controls for the 45HomeLab X4 fan lights through OpenRGB.
+- Added basic solid-color and off controls for the 45HomeLab X4 fan lights through the direct HID stream.
 - Added Warm White, Yellow, Teal, Cyan, and Pink fan lighting presets.
 - Added Rainbow Flow, Color Wave, and Spectrum Cycle effects.
 - Added separate top and bottom fan colors, Outer Loop and Synchronized Wave effects, and a hub LED preview for the X4's 24-LED chain.
@@ -28,6 +28,7 @@
 
 ### Changed
 - Show the lighting settings and power-button option only when the supported RGB controller is present. Skip scheduled and direct lighting actions without that controller; drive mapping remains available.
+- Use the X4 HID controller directly for Drive Map, bay mapping, and fan lighting; OpenRGB is not required.
 - Set editable pattern colors to the calibrated dark orange and blue palette, including Comet and separate fan colors. Rainbow patterns keep their full spectrum by default.
 - Blend Comet color across the tail and keep trailing LEDs brighter so the head and tail read as one moving pattern.
 - Smooth Comet motion between LEDs and replace stepped tail flicker with continuous variation at the existing 15 frames per second.
@@ -43,7 +44,7 @@
 ### Fixed
 - Run Unraid's cron updater through Bash, since its script lacks a valid shebang. Keep invalid night schedule input visible and show validation next to the schedule controls.
 - Keep X4 hot-swapped disks associated with their physical bays by using the onboard SATA port links.
-- Target the X4 controller without OpenRGB's zone flag, which accepts commands but leaves the fan lights unchanged on this board.
+- Apply global fan-light colors and effects through the direct X4 HID stream.
 - Let Unraid handle CSRF validation for the lighting form; its request handler removes the token before the page runs.
 - Ensure faded LEDs reach fully off instead of remaining dimly lit.
 - Calibrate the X4 fan preview to the measured LED positions; LED 1 is at about 6:30 on the mounted fans. Pair top middle LEDs across the gap for even skipped counts.

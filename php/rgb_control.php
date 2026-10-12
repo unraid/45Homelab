@@ -2,9 +2,7 @@
 require_once __DIR__ . '/rgb_stream.php';
 
 // The X4 fan lights are wired to the ASRock board's addressable RGB header.
-// Keep this intentionally specific: OpenRGB can also control unrelated devices.
-const HOMELAB_RGB_DEVICE = 'ASRock B860I WiFi';
-const HOMELAB_RGB_ZONE = 'Addressable Header 1';
+// The X4 HID controller accepts the same direct LED stream for every mode.
 const HOMELAB_RGB_PRESETS = [
   'off' => ['label' => 'Off', 'color' => null],
   'white' => ['label' => 'White', 'color' => 'FFFFFF'],
@@ -20,9 +18,9 @@ const HOMELAB_RGB_PRESETS = [
   'pink' => ['label' => 'Pink', 'color' => 'FF69B4'],
 ];
 const HOMELAB_RGB_EFFECTS = [
-  'rainbow-flow' => ['label' => 'Rainbow Flow', 'mode' => 'Rainbow'],
-  'color-wave' => ['label' => 'Color Wave', 'mode' => 'Wave'],
-  'spectrum-cycle' => ['label' => 'Spectrum Cycle', 'mode' => 'Spectrum Cycle'],
+  'rainbow-flow' => ['label' => 'Rainbow Flow', 'effect' => 'synchronized-rainbow'],
+  'color-wave' => ['label' => 'Color Wave', 'effect' => 'pinwheel-rainbow'],
+  'spectrum-cycle' => ['label' => 'Spectrum Cycle', 'effect' => 'synchronized-rainbow', 'rainbow_cycles' => 2],
 ];
 
 function homelab_rgb_label($preset)
@@ -30,91 +28,40 @@ function homelab_rgb_label($preset)
   return HOMELAB_RGB_PRESETS[$preset]['label'] ?? HOMELAB_RGB_EFFECTS[$preset]['label'] ?? null;
 }
 
-function homelab_openrgb_binary()
+function homelab_rgb_detect()
 {
-  return getenv('HOMELAB_OPENRGB_BIN') ?: '/usr/bin/openrgb';
-}
-
-function homelab_openrgb_run($args, $binary = null)
-{
-  $binary = $binary ?: homelab_openrgb_binary();
-  if (!is_file($binary) || !is_executable($binary)) {
-    return ['ok' => false, 'output' => '', 'error' => 'Install the OpenRGB Unraid plugin to control fan colors.'];
-  }
-
-  $command = is_executable('/usr/bin/timeout') ? ['/usr/bin/timeout', '10s'] : [];
-  $command = array_merge($command, [$binary, '--noautoconnect'], $args);
-  $pipes = [];
-  $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-  if (!is_resource($process)) {
-    return ['ok' => false, 'output' => '', 'error' => 'Could not start OpenRGB.'];
-  }
-  $stdout = stream_get_contents($pipes[1]);
-  $stderr = stream_get_contents($pipes[2]);
-  fclose($pipes[1]);
-  fclose($pipes[2]);
-  $exit_code = proc_close($process);
-  $output = trim($stdout . "\n" . $stderr);
-  return [
-    'ok' => $exit_code === 0,
-    'output' => $output,
-    'error' => $exit_code === 0 ? null : ($exit_code === 124 ? 'OpenRGB timed out.' : 'OpenRGB failed. Check its installation and device access.'),
-  ];
-}
-
-function homelab_rgb_detect($binary = null)
-{
-  if (homelab_stream_controller() === null) {
+  $device = homelab_stream_controller();
+  if ($device === null) {
     return ['ok' => false, 'output' => '', 'error' => 'Fan lighting controller was not found.'];
   }
-  $result = homelab_openrgb_run(['--list-detailed'], $binary);
-  if (!$result['ok']) {
-    return $result;
-  }
-  $device_found = false;
-  foreach (preg_split('/(?=^\d+: )/m', $result['output']) as $device) {
-    if (!preg_match('/^\d+: ASRock B860I WiFi\r?$/m', $device)) {
-      continue;
-    }
-    $device_found = preg_match("/^  Zones: '" . preg_quote(HOMELAB_RGB_ZONE, '/') . "'\\r?$/m", $device) &&
-      preg_match('/^  Modes:.*\bOff\b.*\bStatic\b.*\bWave\b.*\bRainbow\b/m', $device);
-    break;
-  }
-  if (!$device_found) {
-    return ['ok' => false, 'output' => $result['output'], 'error' => 'Fan lighting controller was not found.'];
-  }
-  return ['ok' => true, 'output' => $result['output'], 'error' => null];
+  return ['ok' => true, 'output' => $device, 'error' => null];
 }
 
-function homelab_rgb_set($preset, $binary = null)
+function homelab_rgb_config($preset)
 {
   if (!is_string($preset) || homelab_rgb_label($preset) === null) {
-    return ['ok' => false, 'error' => 'Choose a listed lighting option.'];
+    throw new InvalidArgumentException('Choose a listed lighting option.');
   }
-  if (homelab_stream_controller() === null) {
-    return ['ok' => false, 'error' => 'Fan lighting controller was not found.'];
-  }
-  $stopped = homelab_stream_stop();
-  if (!$stopped['ok']) {
-    return $stopped;
-  }
-  $detected = homelab_rgb_detect($binary);
-  if (!$detected['ok']) {
-    return $detected;
-  }
-  // This board exposes one zone. OpenRGB accepts --zone 0 but does not apply
-  // colors on the X4 when it is present, so target the verified device only.
-  $args = ['--device', HOMELAB_RGB_DEVICE];
   if (isset(HOMELAB_RGB_EFFECTS[$preset])) {
-    $args = array_merge($args, ['--mode', HOMELAB_RGB_EFFECTS[$preset]['mode']]);
-  } else {
-    $color = HOMELAB_RGB_PRESETS[$preset]['color'];
-    $args = array_merge($args, ['--mode', $color === null ? 'Off' : 'Static']);
-    if ($color !== null) {
-      $args = array_merge($args, ['--color', $color]);
+    $effect = HOMELAB_RGB_EFFECTS[$preset];
+    $config = ['effect' => $effect['effect']];
+    if (isset($effect['rainbow_cycles'])) {
+      $config['rainbow_cycles'] = $effect['rainbow_cycles'];
     }
+    return $config;
   }
-  return homelab_openrgb_run($args, $binary);
+  $color = HOMELAB_RGB_PRESETS[$preset]['color'] ?: '000000';
+  return ['top' => $color, 'bottom' => $color];
+}
+
+function homelab_rgb_set($preset)
+{
+  try {
+    $config = homelab_rgb_config($preset);
+  } catch (InvalidArgumentException $error) {
+    return ['ok' => false, 'error' => $error->getMessage()];
+  }
+  return homelab_stream_start($config);
 }
 
 function homelab_rgb_separate_colors($top, $bottom)

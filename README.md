@@ -1,7 +1,7 @@
 # 45HomeLab (Unraid Plugin)
 
 Embed the 45Drives disk map UI in Unraid's **Main** page. On the 45HomeLab X4,
-set a solid color for fan lights connected to the ASRock addressable RGB header.
+control fan lights connected to the ASRock addressable RGB header.
 
 ## Stable Plugin Links
 
@@ -25,11 +25,9 @@ set a solid color for fan lights connected to the ASRock addressable RGB header.
 
 ## X4 Fan Lighting
 
-Install [Unraid's OpenRGB plugin](https://github.com/unraid/unraid-openrgb/releases/latest/download/openrgb.plg)
-first.
-45HomeLab uses its `/usr/bin/openrgb` command. It does not bundle another OpenRGB
-runtime. The X4 controller must appear as `ASRock B860I WiFi` with
-`Addressable Header 1` in `openrgb --list-detailed`.
+Fan lighting uses the X4 HID controller directly. It does not require OpenRGB
+or another lighting plugin. The supported controller must be present as a
+writable `/dev/hidrawN` device.
 
 Select Off, White, Warm White, Red, Orange, Yellow, Green, Teal, Cyan, Blue,
 Purple, or Pink. Animated options include Rainbow Flow, Color Wave, and Spectrum
@@ -63,8 +61,8 @@ The preview has controls for rotation time, direction, hue shift, brightness,
 bottom fan alignment, pattern repeats, and fade. Hue shift applies to full
 rainbow palettes. Animated streams run at 15 frames per second. Static custom
 palettes run at 5 frames per second. Applying
-any global option stops the stream and returns control to OpenRGB. Fan speed is
-unaffected.
+any global option stops the active stream and applies the selected mode directly
+to the X4 controller. Fan speed is unaffected.
 Select Mesh view above the preview to see softened light spread across each fan
 face through a simulated case mesh. This changes only the preview, not the fan lights.
 Outer Loop, Two-Color Loop, and Comet Loop also have a Virtual gap control.
@@ -91,9 +89,8 @@ button's existing action automatically. A button press during night mode
 temporarily overrides the lights until the next schedule transition. Repeat
 button events within one second are ignored because some boards dispatch
 one physical press twice.
-The control targets only the X4 addressable header. Other OpenRGB devices are
-left alone. Applying a color sends the selected setting to the controller
-immediately; persistence across a power cycle has not been verified.
+The control targets only the X4 addressable header. Applying a color changes the
+controller now; persistence across a power cycle has not been verified.
 The two daisy-chained ARCTIC fans on the tested X4 form a 24-LED serial chain:
 LEDs 1–12 are the top fan and 13–24 are the bottom fan. The independent controls
 use the ASRock USB controller's HID stream. A fixed white/blue test and an

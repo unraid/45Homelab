@@ -211,8 +211,8 @@ function homelab_power_toggle($apply = null, $timestamp = null)
   try {
     $state = json_decode((string) @file_get_contents($paths['power']), true);
     $now = $timestamp ?? hrtime(true) / 1000000000;
-    // Some boards dispatch one physical press twice. Keep this inside the
-    // lock so a second handler waiting for OpenRGB cannot undo the first.
+    // Some boards dispatch one physical press twice. Keep duplicate button
+    // events inside the lock so they cannot undo the first action.
     $last_press = $state['button_at'] ?? null;
     if (is_numeric($last_press) && $now >= $last_press && $now - $last_press < 1) {
       return ['ok' => true, 'error' => null];
