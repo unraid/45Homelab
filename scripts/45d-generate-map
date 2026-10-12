@@ -9,6 +9,7 @@ $map_file = getenv('DRIVEMAP_OUTPUT_FILE') ?: ($output_dir . '/drivemap.json');
 $last_file = getenv('DRIVEMAP_LAST_FILE') ?: ($output_dir . '/drivemap.last');
 $log_file = getenv('DRIVEMAP_LOG_FILE') ?: ($output_dir . '/drivemap.log');
 $alias_file = getenv('DRIVEMAP_ALIAS_FILE') ?: '/etc/vdev_id.conf';
+$vdev_dir = rtrim(getenv('DRIVEMAP_VDEV_DIR') ?: '/dev/disk/by-vdev', "/\\");
 $lsblk_source = getenv('DRIVEMAP_LSBLK') ?: '';
 $disks_ini_path = getenv('DRIVEMAP_DISKS_INI') ?: '/var/local/emhttp/disks.ini';
 $devs_ini_path = getenv('DRIVEMAP_DEVS_INI') ?: '/var/local/emhttp/devs.ini';
@@ -786,6 +787,13 @@ foreach ($aliases as $alias) {
   $drive = $alias['drive'];
   $path = $alias['path'];
   $bay_id = $card . '-' . $drive;
+
+  // by-id follows the disk serial. Prefer the physical-bay link when udev
+  // provides one, so a moved disk is read from its current bay.
+  $vdev_path = $vdev_dir . '/' . $bay_id;
+  if (is_link($vdev_path)) {
+    $path = $vdev_path;
+  }
 
   $slot = [
     'dev-by-path' => $path,
