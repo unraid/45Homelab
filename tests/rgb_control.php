@@ -13,12 +13,6 @@ file_put_contents($sysfs . '/hidraw0/device/uevent', "HID_ID=0003:000026CE:00000
 file_put_contents($devices . '/hidraw0', '');
 putenv('HOMELAB_RGB_HIDRAW_SYSFS=' . $sysfs);
 putenv('HOMELAB_RGB_HIDRAW_DEV=' . $devices);
-$binary = $dir . '/openrgb';
-$log = $dir . '/args';
-$fixture = $dir . '/devices';
-file_put_contents($fixture, "0: ASRock B860I WiFi\n  Modes: [Off] Static Wave Rainbow Direct\n  Zones: 'Addressable Header 1'\n");
-file_put_contents($binary, "#!/bin/sh\nprintf '%s\\n' \"\$@\" >> " . escapeshellarg($log) . "\nif [ \"\$2\" = '--list-detailed' ]; then cat " . escapeshellarg($fixture) . "; fi\n");
-chmod($binary, 0700);
 
 function check($value, $message)
 {
@@ -28,7 +22,7 @@ function check($value, $message)
   }
 }
 
-check(homelab_rgb_detect($binary)['ok'], 'detects X4 addressable header');
+check(homelab_rgb_detect()['ok'], 'detects X4 HID controller directly');
 check(include dirname(__DIR__) . '/php/rgb-available.php', 'controller enables the settings page');
 $leds = homelab_stream_leds(['top' => 'FFFFFF', 'bottom' => '0000FF']);
 check(count($leds) === 24 && count(array_unique(array_slice($leds, 0, 12))) === 1 &&
@@ -281,31 +275,20 @@ check(!homelab_rgb_set_separate('bad', 'blue')['ok'], 'rejects unknown separate 
 check(homelab_rgb_separate_colors('#aBcDeF', 'off') === ['top' => 'ABCDEF', 'bottom' => '000000'] &&
   homelab_rgb_separate_colors('white', '#123456') === ['top' => 'FFFFFF', 'bottom' => '123456'],
   'separate fans accept custom colors and existing presets');
-file_put_contents($fixture, "0: ASRock B860I WiFi\n  Modes: [Off] Static Wave Rainbow Direct\n  Zones: 'Addressable Header 1' 'Other Header'\n");
-check(!homelab_rgb_detect($binary)['ok'], 'rejects controller with other zones');
-file_put_contents($fixture, "0: ASRock B860I WiFi\n  Modes: [Off] Static Wave Rainbow Direct\n  Zones: 'Addressable Header 1'\n");
-$before = file_get_contents($log);
-check(!homelab_rgb_set('red;touch /tmp/bad', $binary)['ok'], 'rejects unknown preset');
-check(!homelab_rgb_set(['red'], $binary)['ok'], 'rejects array input');
-check(file_get_contents($log) === $before, 'rejects unknown preset before command execution');
-check(homelab_rgb_set('blue', $binary)['ok'], 'applies listed preset');
-check(homelab_rgb_set('blue', $binary)['error'] === null, 'successful command has no error');
-check(strpos(file_get_contents($log), "--device\nASRock B860I WiFi\n--mode\nStatic\n--color\n0000FF\n") !== false, 'targets X4 controller with static blue');
-check(homelab_rgb_set('warm-white', $binary)['ok'], 'applies warm white preset');
-check(strpos(file_get_contents($log), "--mode\nStatic\n--color\nFFD8A8\n") !== false, 'sends warm white RGB value');
-check(homelab_rgb_set('off', $binary)['ok'], 'turns lighting off');
-check(strpos(file_get_contents($log), "--mode\nOff\n") !== false, 'uses Off mode');
-check(homelab_rgb_set('rainbow-flow', $binary)['ok'], 'applies animated effect');
-check(strpos(file_get_contents($log), "--mode\nRainbow\n") !== false, 'uses Rainbow mode');
-// Unraid's request handler validates and removes csrf_token before the page runs.
-putenv('HOMELAB_OPENRGB_BIN=' . $binary);
-$_SERVER['REQUEST_METHOD'] = 'POST';
-$_POST = ['color' => 'orange'];
-$var = ['csrf_token' => 'already-validated'];
+check(homelab_rgb_config('blue') === ['top' => '0000FF', 'bottom' => '0000FF'] &&
+  homelab_rgb_config('off') === ['top' => '000000', 'bottom' => '000000'],
+  'global colors use direct HID frames for both fans');
+check(homelab_rgb_config('rainbow-flow') === ['effect' => 'synchronized-rainbow'] &&
+  homelab_rgb_config('color-wave') === ['effect' => 'pinwheel-rainbow'] &&
+  homelab_rgb_config('spectrum-cycle') === ['effect' => 'synchronized-rainbow', 'rainbow_cycles' => 2],
+  'global effects use direct HID stream effects');
+check(!homelab_rgb_set('red;touch /tmp/bad')['ok'], 'rejects unknown preset');
+check(!homelab_rgb_set(['red'])['ok'], 'rejects array input');
+// The page can render the direct HID controls without another lighting plugin.
+$_SERVER['REQUEST_METHOD'] = 'GET';
 ob_start();
 include dirname(__DIR__) . '/HomeLab.page';
 $page = ob_get_clean();
-check(strpos($page, 'Orange applied.') !== false, 'page accepts validated POST without token field');
 check(strpos($page, 'Rainbow Flow') !== false, 'page lists animated effects');
 check(strpos($page, 'Lighting mode') !== false && strpos($page, 'Separate fan colors') !== false &&
   strpos($page, 'Synchronized Wave') !== false && strpos($page, 'bottom_phase_steps') !== false &&
@@ -325,16 +308,10 @@ check(strpos($page, 'Lighting mode') !== false && strpos($page, 'Separate fan co
   strpos($page, 'name="virtual_gap_steps"') !== false &&
   strpos($page, 'name="middle_enabled"') !== false && strpos($page, 'name="middle_color"') !== false,
   'page offers tuned animations and custom LED painting');
-unset($_SERVER['REQUEST_METHOD'], $_POST, $var);
-putenv('HOMELAB_OPENRGB_BIN');
-file_put_contents($fixture, "0: Other controller\n  Modes: [Off] Static\n  Zones: 'Addressable Header 1'\n");
-check(!homelab_rgb_detect($binary)['ok'], 'rejects unrelated controller');
-check(!homelab_rgb_detect($dir . '/missing')['ok'], 'reports missing runtime');
-$before = file_get_contents($log);
+unset($_SERVER['REQUEST_METHOD']);
 file_put_contents($sysfs . '/hidraw0/device/uevent', "HID_ID=0003:000026CE:000001A3\n");
-check(!(include dirname(__DIR__) . '/php/rgb-available.php') &&
-  !homelab_rgb_detect($binary)['ok'] && file_get_contents($log) === $before,
-  'different controller is rejected before OpenRGB runs');
+check(!(include dirname(__DIR__) . '/php/rgb-available.php') && !homelab_rgb_detect()['ok'],
+  'different HID controller is rejected');
 file_put_contents($sysfs . '/hidraw0/device/uevent', "HID_ID=0003:000026CE:000001A2\n");
 unlink($devices . '/hidraw0');
 $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -344,15 +321,10 @@ include dirname(__DIR__) . '/HomeLab.page';
 $unsupported_page = ob_get_clean();
 unset($_SERVER['REQUEST_METHOD'], $_POST);
 check(strpos($unsupported_page, 'homelab-rgb-preview') === false &&
-  file_get_contents($log) === $before &&
   !(include dirname(__DIR__) . '/php/rgb-available.php') &&
-  !homelab_rgb_detect($binary)['ok'] &&
-  !homelab_rgb_set('blue', $binary)['ok'] && file_get_contents($log) === $before,
-  'missing controller hides lighting and rejects direct requests before OpenRGB runs');
+  !homelab_rgb_detect()['ok'] && !homelab_rgb_set('blue')['ok'],
+  'missing controller hides lighting and rejects direct requests');
 
-unlink($binary);
-unlink($log);
-unlink($fixture);
 @unlink($dir . '/rgb-day.json');
 @unlink($dir . '/rgb-last-on.json');
 @unlink($dir . '/rgb-power-state.json');
