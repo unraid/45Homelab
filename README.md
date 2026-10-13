@@ -1,4 +1,4 @@
-# 45HomeLab (Unraid Plugin)
+**45HomeLab (Unraid Plugin)**
 
 Embed the 45Drives disk map UI in Unraid's **Main** page. On the 45HomeLab X4,
 control fan lights connected to the ASRock addressable RGB header.
