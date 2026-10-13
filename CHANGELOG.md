@@ -42,6 +42,7 @@
 
 ### Fixed
 - Run Unraid's cron updater through Bash, since its script lacks a valid shebang. Keep invalid night schedule input visible and show validation next to the schedule controls.
+- Keep X4 hot-swapped disks associated with their physical bays by using the onboard SATA port links.
 - Target the X4 controller without OpenRGB's zone flag, which accepts commands but leaves the fan lights unchanged on this board.
 - Let Unraid handle CSRF validation for the lighting form; its request handler removes the token before the page runs.
 - Ensure faded LEDs reach fully off instead of remaining dimly lit.

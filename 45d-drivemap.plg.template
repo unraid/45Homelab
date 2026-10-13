@@ -80,6 +80,9 @@ fi
 
 chmod +x "${PLUGIN_DIR}/scripts/45d-generate-map" || true
 chmod +x "${PLUGIN_DIR}/scripts/45d-generate-server-info" || true
+if [ -f "${PLUGIN_DIR}/scripts/45d-install-x4-udev" ]; then
+  /usr/bin/php "${PLUGIN_DIR}/scripts/45d-install-x4-udev" install
+fi
 
 # Refresh aliases for existing X4 installations after the ATA slot mapping fix.
 if [ -f /etc/vdev_id.conf ] && [ -x "${PLUGIN_DIR}/scripts/45d-generate-map" ]; then
@@ -151,6 +154,10 @@ stop_rgb_worker() {
   echo "45HomeLab: RGB worker ${pid} did not stop; aborting plugin removal." >&2
   return 1
 }
+
+if [ -f "${PLUGIN_DIR}/scripts/45d-install-x4-udev" ]; then
+  /usr/bin/php "${PLUGIN_DIR}/scripts/45d-install-x4-udev" remove || true
+fi
 
 rm -f "${BOOT_DIR}/rgb.cron"
 if [ -f /boot/config/plugins/dynamix/dynamix.cfg ] &&

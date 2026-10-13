@@ -3,6 +3,7 @@ $root = dirname(__DIR__);
 $fixtures = __DIR__ . '/fixtures';
 $map_script = $root . '/scripts/45d-generate-map';
 $server_script = $root . '/scripts/45d-generate-server-info';
+$x4_udev_script = $root . '/scripts/45d-install-x4-udev';
 $hba_paths_script = $root . '/scripts/45d-list-hba-paths';
 
 $failures = 0;
@@ -67,12 +68,14 @@ function create_context($name = '')
     'tmp' => $tmp,
     'dev_dir' => $tmp . '/dev',
     'by_path_dir' => $tmp . '/by-path',
+    'by_vdev_dir' => $tmp . '/by-vdev',
     'out_dir' => $tmp . '/out',
     'sys_block_dir' => $tmp . '/sys/block',
     'alias_file' => $tmp . '/vdev_id.conf',
   ];
   ensure_dir($ctx['dev_dir']);
   ensure_dir($ctx['by_path_dir']);
+  ensure_dir($ctx['by_vdev_dir']);
   ensure_dir($ctx['out_dir']);
   ensure_dir($ctx['sys_block_dir']);
 
@@ -139,6 +142,7 @@ function set_common_env($ctx, $fixtures)
 {
   putenv('DRIVEMAP_OUTPUT_DIR=' . $ctx['out_dir']);
   putenv('DRIVEMAP_ALIAS_FILE=' . $ctx['alias_file']);
+  putenv('DRIVEMAP_VDEV_DIR=' . $ctx['by_vdev_dir']);
   putenv('DRIVEMAP_LSBLK=' . $fixtures . '/lsblk.txt');
   putenv('DRIVEMAP_DISKS_INI=' . $fixtures . '/disks.ini');
   putenv('DRIVEMAP_DEVS_INI=' . $fixtures . '/devs.ini');
@@ -504,6 +508,42 @@ assert_equal($slot_2_1['fs-mountpoint'], '', '2-1 filesystem mountpoint empty');
 
 assert_true(isset($map['lastUpdated']), 'lastUpdated present');
 assert_true(isset($map['lsdevDuration']), 'lsdevDuration present');
+
+// Scenario 1a: X4 map reads the physical-bay link instead of a stale serial link.
+$ctx_x4_by_vdev = create_context('x4-by-vdev');
+write_alias_file($ctx_x4_by_vdev, [
+  '1-1' => 'old-serial-1',
+  '1-2' => 'old-serial-2',
+  '1-3' => 'old-serial-3',
+  '1-4' => 'old-serial-4',
+]);
+@symlink($ctx_x4_by_vdev['dev_dir'] . '/sda', $ctx_x4_by_vdev['by_vdev_dir'] . '/1-1');
+@symlink($ctx_x4_by_vdev['dev_dir'] . '/sdb', $ctx_x4_by_vdev['by_vdev_dir'] . '/1-2');
+set_common_env($ctx_x4_by_vdev, $fixtures);
+putenv('DRIVEMAP_CHASSIS_SIZE=X4');
+putenv('DRIVEMAP_SERVER_MODEL=Unraid >< 45Homelab X-4');
+putenv('DRIVEMAP_ALIAS_STYLE=HOMELAB');
+[$x4_by_vdev_code] = run_php_script($map_script);
+assert_equal($x4_by_vdev_code, 0, 'x4 by-vdev map generation succeeds');
+$x4_by_vdev_map = load_json_file($ctx_x4_by_vdev['out_dir'] . '/drivemap.json');
+$x4_by_vdev_slot = find_slot($x4_by_vdev_map['rows'] ?? [], '1-2');
+assert_equal($x4_by_vdev_slot['dev-by-path'] ?? '', $ctx_x4_by_vdev['by_vdev_dir'] . '/1-2', 'x4 map uses the physical-bay link');
+assert_equal($x4_by_vdev_slot['dev'] ?? '', realpath($ctx_x4_by_vdev['dev_dir'] . '/sdb'), 'x4 bay 1-2 initially resolves to sdb');
+
+@unlink($ctx_x4_by_vdev['by_vdev_dir'] . '/1-2');
+@symlink($ctx_x4_by_vdev['dev_dir'] . '/sdc', $ctx_x4_by_vdev['by_vdev_dir'] . '/1-2');
+[$x4_by_vdev_swap_code] = run_php_script($map_script);
+assert_equal($x4_by_vdev_swap_code, 0, 'x4 by-vdev map refresh succeeds after a swap');
+$x4_by_vdev_swap_map = load_json_file($ctx_x4_by_vdev['out_dir'] . '/drivemap.json');
+$x4_by_vdev_swap_slot = find_slot($x4_by_vdev_swap_map['rows'] ?? [], '1-2');
+assert_equal($x4_by_vdev_swap_slot['dev'] ?? '', realpath($ctx_x4_by_vdev['dev_dir'] . '/sdc'), 'x4 bay 1-2 follows the new disk after a swap');
+assert_equal($x4_by_vdev_swap_slot['serial'] ?? '', 'SAMPLE0003', 'x4 bay 1-2 reports the new disk serial');
+
+// Restore the baseline environment for the remaining API and map scenarios.
+set_common_env($ctx, $fixtures);
+putenv('DRIVEMAP_CHASSIS_SIZE=S45');
+putenv('DRIVEMAP_SERVER_MODEL=Storinator-S45');
+putenv('DRIVEMAP_ALIAS_STYLE=STORINATOR');
 
 $server_info_path = $ctx['out_dir'] . '/server_info.json';
 assert_true(is_file($server_info_path), 'server_info.json is created');
@@ -1207,6 +1247,40 @@ assert_equal(alias_lines_from_fixture($ctx_x4_migration['alias_file']), [
   'alias 1-3 /dev/disk/by-path/pci-0000:80:17.0-ata-6',
   'alias 1-4 /dev/disk/by-path/pci-0000:80:17.0-ata-5',
 ], 'x4 migration replaces the existing alias mapping');
+
+// Scenario 8b6: X4 udev installation detects the controller address and emits
+// a rule before the generic vdev rule can assign a serial-based bay.
+$ctx_x4_udev = create_context('x4-udev');
+$x4_udev_ata_dir = $ctx_x4_udev['tmp'] . '/ata-port';
+$x4_udev_rule = $ctx_x4_udev['tmp'] . '/rules.d/67-45homelab-x4.rules';
+$x4_udev_server = $ctx_x4_udev['tmp'] . '/server_info.json';
+ensure_dir($x4_udev_ata_dir);
+foreach ([5, 6, 7, 8] as $port) {
+  $target = $ctx_x4_udev['tmp'] . "/pci0000:80/0000:80:17.0/ata$port/ata_port/ata$port";
+  ensure_dir($target);
+  @symlink($target, $x4_udev_ata_dir . '/ata' . $port);
+}
+file_put_contents($x4_udev_server, json_encode([
+  'Model' => 'Unraid >< 45Homelab X-4',
+  'Alias Style' => 'HOMELAB',
+  'Chassis Size' => 'X4',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+[$x4_udev_code, $x4_udev_output] = run_php_script_args($x4_udev_script, ['install'], [
+  'DRIVEMAP_X4_SERVER_INFO' => $x4_udev_server,
+  'DRIVEMAP_X4_SERVER_INFO_SOURCE' => $ctx_x4_udev['tmp'] . '/missing-server-info.json',
+  'DRIVEMAP_X4_RULE_TEMPLATE' => $root . '/assets/45d/udev/67-45homelab-x4.rules.in',
+  'DRIVEMAP_X4_RULE_PATH' => $x4_udev_rule,
+  'DRIVEMAP_X4_ATA_PORT_DIR' => $x4_udev_ata_dir,
+  'DRIVEMAP_X4_DEV_BY_VDEV_DIR' => $ctx_x4_udev['by_vdev_dir'],
+  'DRIVEMAP_X4_SKIP_UDEV' => '1',
+]);
+assert_equal($x4_udev_code, 0, 'x4 udev installer succeeds');
+$x4_udev_rules = is_file($x4_udev_rule) ? (string)file_get_contents($x4_udev_rule) : '';
+assert_true(strpos($x4_udev_rules, 'DEVPATH=="*/0000:80:17.0/ata8/*", SYMLINK+="disk/by-vdev/1-1"') !== false, 'x4 udev rule maps ATA8 to bay 1-1');
+assert_true(strpos($x4_udev_rules, 'DEVPATH=="*/0000:80:17.0/ata7/*", SYMLINK+="disk/by-vdev/1-2"') !== false, 'x4 udev rule maps ATA7 to bay 1-2');
+assert_true(strpos($x4_udev_rules, 'DEVPATH=="*/0000:80:17.0/ata6/*", SYMLINK+="disk/by-vdev/1-3"') !== false, 'x4 udev rule maps ATA6 to bay 1-3');
+assert_true(strpos($x4_udev_rules, 'DEVPATH=="*/0000:80:17.0/ata5/*", SYMLINK+="disk/by-vdev/1-4"') !== false, 'x4 udev rule maps ATA5 to bay 1-4');
+assert_true(strpos($x4_udev_rules, 'DISK_HANDLED_BY_CUSTOM_ALIASES') !== false, 'x4 udev rule prevents serial aliases from claiming the bay');
 
 // Scenario 8c: AV15 base aliasing also ignores Intel sSATA when choosing the SATA bus.
 $ctx_av15_base_sata = create_context('ported-dmap-av15-base-sata-regex');

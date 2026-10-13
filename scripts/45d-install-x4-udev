@@ -1,0 +1,148 @@
+#!/usr/bin/php
+<?php
+// Installs the X4 physical-bay udev rule when the current host is an X4.
+$mode = $argv[1] ?? 'install';
+$rule_path = getenv('DRIVEMAP_X4_RULE_PATH') ?: '/etc/udev/rules.d/67-45homelab-x4.rules';
+$rule_template = getenv('DRIVEMAP_X4_RULE_TEMPLATE') ?: dirname(__DIR__) . '/assets/45d/udev/67-45homelab-x4.rules.in';
+$server_info_path = getenv('DRIVEMAP_X4_SERVER_INFO') ?: '/var/local/45d/server_info.json';
+$server_info_source = getenv('DRIVEMAP_X4_SERVER_INFO_SOURCE') ?: '/etc/45drives/server_info/server_info.json';
+$ata_port_dir = getenv('DRIVEMAP_X4_ATA_PORT_DIR') ?: '/sys/class/ata_port';
+$by_vdev_dir = rtrim(getenv('DRIVEMAP_X4_DEV_BY_VDEV_DIR') ?: '/dev/disk/by-vdev', "/\\");
+
+function fail_install($message)
+{
+  fwrite(STDERR, $message . "\n");
+  exit(1);
+}
+
+function load_json_file($path)
+{
+  if (!is_file($path)) {
+    return null;
+  }
+  $value = json_decode((string)@file_get_contents($path), true);
+  return is_array($value) ? $value : null;
+}
+
+function host_is_x4($server_info, $server_info_source)
+{
+  $info = is_array($server_info) ? $server_info : load_json_file($server_info_source);
+  if (is_array($info)) {
+    $style = strtoupper(trim((string)($info['Alias Style'] ?? '')));
+    $chassis = strtoupper(trim((string)($info['Chassis Size'] ?? '')));
+    $model = strtoupper(trim((string)($info['Model'] ?? '')));
+    if ($style === 'HOMELAB' && ($chassis === 'X4' || strpos($model, 'X-4') !== false)) {
+      return true;
+    }
+  }
+
+  foreach (['/sys/class/dmi/id/board_name', '/sys/class/dmi/id/product_name'] as $path) {
+    $value = trim((string)@file_get_contents($path));
+    if (preg_match('/^B860I\s+WiFi$/i', $value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function detect_x4_sata_bdf($ata_port_dir)
+{
+  $groups = [];
+  foreach (glob(rtrim($ata_port_dir, '/\\') . '/ata*') ?: [] as $entry) {
+    $name = basename($entry);
+    if (!preg_match('/^ata(\d+)$/', $name, $port_match)) {
+      continue;
+    }
+    $path = realpath($entry);
+    if ($path === false || !preg_match('#/(0000:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}\.[0-7])/ata\d+/#', $path, $bdf_match)) {
+      continue;
+    }
+    $bdf = strtolower($bdf_match[1]);
+    $groups[$bdf][(int)$port_match[1]] = true;
+  }
+
+  foreach ($groups as $bdf => $ports) {
+    if (count(array_intersect([5, 6, 7, 8], array_keys($ports))) === 4) {
+      return $bdf;
+    }
+  }
+  return null;
+}
+
+function remove_bay_links($by_vdev_dir)
+{
+  for ($drive = 1; $drive <= 4; $drive++) {
+    @unlink($by_vdev_dir . '/1-' . $drive);
+    foreach (glob($by_vdev_dir . '/1-' . $drive . '-part*') ?: [] as $partition_link) {
+      @unlink($partition_link);
+    }
+  }
+}
+
+function run_udevadm($arguments)
+{
+  if (getenv('DRIVEMAP_X4_SKIP_UDEV') === '1') {
+    return;
+  }
+  $udevadm = getenv('DRIVEMAP_X4_UDEVADM') ?: 'udevadm';
+  $output = [];
+  $code = 0;
+  exec(escapeshellarg($udevadm) . ' ' . $arguments . ' 2>&1', $output, $code);
+  if ($code !== 0) {
+    fail_install('udevadm ' . $arguments . ' failed: ' . implode(' | ', $output));
+  }
+}
+
+if ($mode === 'remove') {
+  @unlink($rule_path);
+  remove_bay_links($by_vdev_dir);
+  if (is_file($rule_path) || is_link($rule_path)) {
+    fail_install('Could not remove ' . $rule_path);
+  }
+  if (getenv('DRIVEMAP_X4_SKIP_UDEV') !== '1') {
+    run_udevadm('control --reload-rules');
+  }
+  exit(0);
+}
+
+if ($mode !== 'install') {
+  fail_install('Usage: 45d-install-x4-udev [install|remove]');
+}
+
+if (!host_is_x4(load_json_file($server_info_path), $server_info_source)) {
+  @unlink($rule_path);
+  remove_bay_links($by_vdev_dir);
+  if (getenv('DRIVEMAP_X4_SKIP_UDEV') !== '1') {
+    run_udevadm('control --reload-rules');
+  }
+  exit(0);
+}
+
+$bdf = detect_x4_sata_bdf($ata_port_dir);
+if ($bdf === null) {
+  fail_install('X4 detected, but ATA ports 5-8 were not found in ' . $ata_port_dir);
+}
+
+$template = @file_get_contents($rule_template);
+if ($template === false) {
+  fail_install('Could not read X4 udev rule template: ' . $rule_template);
+}
+
+$rule = str_replace('__X4_SATA_BDF__', $bdf, $template);
+$rule_dir = dirname($rule_path);
+if (!is_dir($rule_dir) && !@mkdir($rule_dir, 0755, true) && !is_dir($rule_dir)) {
+  fail_install('Could not create udev rule directory: ' . $rule_dir);
+}
+
+$temporary_path = $rule_path . '.tmp.' . getmypid();
+if (@file_put_contents($temporary_path, $rule) === false || !@rename($temporary_path, $rule_path)) {
+  @unlink($temporary_path);
+  fail_install('Could not write X4 udev rule: ' . $rule_path);
+}
+@chmod($rule_path, 0644);
+
+remove_bay_links($by_vdev_dir);
+run_udevadm('control --reload-rules');
+run_udevadm('trigger --subsystem-match=block --action=change');
+run_udevadm('settle');
+echo 'Installed X4 udev rule for ' . $bdf . "\n";
