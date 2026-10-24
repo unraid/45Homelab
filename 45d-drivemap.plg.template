@@ -75,7 +75,17 @@ stop_rgb_worker() {
 if [ -f "${PACKAGE_FILE}" ]; then
   stop_rgb_worker "${STATE_DIR}/rgb-stream.pid"
   rm -rf "${PLUGIN_DIR}"
-  tar --no-overwrite-dir -xf "${PACKAGE_FILE}" -C /
+  # Extract only into the plugin tree without touching the metadata of the
+  # system directories that lead to it:
+  #   --no-same-owner       extract as root; never apply the archive's stored
+  #                         uid/gid to /, /usr, ... (a bad/old package once
+  #                         stamped build-side ownership onto '/', which broke
+  #                         sshd StrictModes: "bad ownership or modes for
+  #                         directory /").
+  #   --no-same-permissions don't apply the archive's modes to those dirs.
+  #   --no-overwrite-dir    leave existing directory metadata untouched.
+  tar --no-same-owner --no-same-permissions --no-overwrite-dir \
+    -xf "${PACKAGE_FILE}" -C /
 fi
 
 chmod +x "${PLUGIN_DIR}/scripts/45d-generate-map" || true
